@@ -2,6 +2,8 @@ services:
   - type: web
     name: libretv-private
     runtime: docker
+    repo: https://github.com/nianshou1999/LibreTV
+    branch: main
     plan: free
     region: singapore
     healthCheckPath: /api/status
@@ -19,3 +21,4 @@ services:
         value: "1"
       - key: LIVE_ALLOW_PRIVATE
         value: "0"
+
