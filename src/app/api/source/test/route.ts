@@ -3,6 +3,7 @@ import { guardRequest } from '@/lib/api-guard';
 import { checkUpstreamAllowed } from '@/lib/ssrf';
 import { fetchUpstream } from '@/lib/fetch-utils';
 import { parseSearchList } from '@/lib/cms-parser';
+import { OPEN_FILM_SOURCE, openFilmDetail } from '@/lib/open-films';
 
 export const runtime = 'nodejs';
 
@@ -29,6 +30,13 @@ export async function POST(req: Request) {
 
   const start = Date.now();
   try {
+    if (process.env.ENABLE_OPEN_FILMS === 'true' && url === OPEN_FILM_SOURCE.url) {
+      const stream = openFilmDetail('big-buck-bunny')!.episodes[0];
+      const response = await fetchUpstream(stream, { timeoutMs: 6000 });
+      const valid = response.ok && (await response.text()).trimStart().startsWith('#EXTM3U');
+      return NextResponse.json({ ok: valid, ms: Date.now() - start, count: valid ? 1 : 0,
+        ...(valid ? {} : { error: '验收影片的 HLS 清单暂时不可用' }) });
+    }
     const res = await fetchUpstream(`${url}?ac=videolist&wd=test`, {
       timeoutMs: 6000,
       headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/122.0.0.0 Safari/537.36', Accept: 'application/json' },

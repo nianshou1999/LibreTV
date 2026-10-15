@@ -65,6 +65,47 @@ export function PlayerShell({
   // 起播前的品牌占位图（沿用旧版 nomedia 素材），实际开始播放后隐藏
   const [showPoster, setShowPoster] = useState(true);
   const hintTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const subtitleUrlRef = useRef<string | null>(null);
+  const subtitleFileRef = useRef<HTMLInputElement>(null);
+  const [subtitleName, setSubtitleName] = useState('');
+  const [subtitleEncoding, setSubtitleEncoding] = useState('utf-8');
+
+  const clearSubtitle = () => {
+    if (artRef.current) artRef.current.subtitle.show = false;
+    if (subtitleUrlRef.current) URL.revokeObjectURL(subtitleUrlRef.current);
+    subtitleUrlRef.current = null;
+    setSubtitleName('');
+  };
+
+  const loadSubtitle = async (file: File) => {
+    const art = artRef.current;
+    const episodeUrl = propsRef.current.url;
+    if (!art) return;
+    if (!/\.(srt|vtt)$/i.test(file.name) || file.size > 5 * 1024 * 1024) {
+      showHint('请选择小于 5 MB 的 SRT 或 VTT 字幕文件');
+      return;
+    }
+    let blobUrl: string | undefined;
+    try {
+      const text = new TextDecoder(subtitleEncoding, { fatal: true }).decode(await file.arrayBuffer());
+      if (propsRef.current.url !== episodeUrl || artRef.current !== art) return;
+      clearSubtitle();
+      blobUrl = URL.createObjectURL(new Blob([text], { type: 'text/plain;charset=utf-8' }));
+      subtitleUrlRef.current = blobUrl;
+      await art.subtitle.switch(blobUrl, { type: file.name.toLowerCase().endsWith('.srt') ? 'srt' : 'vtt', escape: true });
+      if (propsRef.current.url !== episodeUrl || artRef.current !== art) {
+        art.subtitle.show = false;
+        return;
+      }
+      art.subtitle.show = true;
+      setSubtitleName(file.name);
+      showHint('中文字幕已加载，仅在本设备处理');
+    } catch {
+      showHint('字幕加载失败；乱码时请选择 GB18030 后重新导入');
+    } finally {
+      if (blobUrl) URL.revokeObjectURL(blobUrl);
+    }
+  };
 
   // 始终持有最新 props/回调，避免重建播放器
   const propsRef = useRef({
@@ -241,6 +282,7 @@ export function PlayerShell({
   /** 换集：重置每集状态并切换到新 HLS 源（不重建 ArtPlayer）。 */
   const loadEpisode = (targetUrl: string) => {
     if (!targetUrl) return;
+    clearSubtitle();
     mediaHealthyRef.current = true;
     playbackStartedRef.current = false;
     videoErrorRetryUsedRef.current = false;
@@ -292,7 +334,7 @@ export function PlayerShell({
       airplay: true,
       hotkey: false,
       theme: '#2563eb',
-      lang: navigator.language.toLowerCase().startsWith('zh') ? 'zh-cn' : 'en',
+      lang: 'zh-cn',
       moreVideoAttr: { crossOrigin: 'anonymous', playsInline: true },
       customType: {
         m3u8: (video: HTMLVideoElement, mediaUrl: string) => {
@@ -467,6 +509,7 @@ export function PlayerShell({
       getVideoPrefetcher().stop();
       art.destroy();
       artRef.current = null;
+      if (subtitleUrlRef.current) URL.revokeObjectURL(subtitleUrlRef.current);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -494,6 +537,18 @@ export function PlayerShell({
   return (
     <div className="relative w-full h-full">
       <div ref={containerRef} className="w-full h-full" style={{ WebkitTouchCallout: 'none' }} />
+      <div className="absolute top-2 right-2 z-20 flex flex-wrap justify-end gap-2 text-xs max-w-full">
+        <input ref={subtitleFileRef} aria-label="选择中文字幕文件" type="file" accept=".srt,.vtt" className="hidden"
+          onChange={(event) => { const file = event.target.files?.[0]; if (file) void loadSubtitle(file); event.target.value = ''; }} />
+        <select aria-label="字幕编码" value={subtitleEncoding} onChange={(e) => setSubtitleEncoding(e.target.value)}
+          className="bg-black/70 text-white rounded px-1">
+          <option value="utf-8">UTF-8</option><option value="gb18030">GB18030</option>
+        </select>
+        <button className="bg-black/70 text-white rounded px-2 py-1" onClick={() => subtitleFileRef.current?.click()}>
+          导入中文字幕
+        </button>
+        {subtitleName && <button className="bg-black/70 text-white rounded px-2 py-1" onClick={clearSubtitle} title={subtitleName}>关闭字幕</button>}
+      </div>
       {showPoster && !error && (
         <div
           className="absolute inset-0 bg-black pointer-events-none"

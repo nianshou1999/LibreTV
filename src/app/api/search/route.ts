@@ -3,6 +3,7 @@ import { guardRequest } from '@/lib/api-guard';
 import { cmsRequestHeaders, filterAdultResults, filterRelevantResults, normalizeTitle, parseSearchList } from '@/lib/cms-parser';
 import { fetchUpstream, getCache, setCache } from '@/lib/fetch-utils';
 import { checkUpstreamAllowed } from '@/lib/ssrf';
+import { isOpenFilmSource, searchOpenFilms } from '@/lib/open-films';
 import type { SearchResponse, SearchStreamEvent, SourceConfig, SourceSearchOutcome } from '@/lib/types';
 
 export const runtime = 'nodejs';
@@ -57,6 +58,9 @@ function isTimeoutError(err: unknown): boolean {
  * 旧版在浏览器里打满 N 个请求（暴露用户 IP、无法缓存、超时失控），现全部上移。
  */
 async function searchSource(source: SourceConfig, wd: string): Promise<SourceSearchOutcome> {
+  if (isOpenFilmSource(source)) {
+    return { sourceKey: source.key, ok: true, list: searchOpenFilms(wd), ms: 0 };
+  }
   const start = Date.now();
   const finish = (outcome: Omit<SourceSearchOutcome, 'ms'>): SourceSearchOutcome => ({
     ...outcome,

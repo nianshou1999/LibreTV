@@ -1,0 +1,21 @@
+services:
+  - type: web
+    name: libretv-private
+    runtime: docker
+    plan: free
+    region: singapore
+    healthCheckPath: /api/status
+    autoDeployTrigger: off
+    envVars:
+      - key: PASSWORD
+        generateValue: true
+      - key: PROXY_SECRET
+        generateValue: true
+      - key: COOKIE_SECURE
+        value: "true"
+      - key: ENABLE_OPEN_FILMS
+        value: "true"
+      - key: NEXT_TELEMETRY_DISABLED
+        value: "1"
+      - key: LIVE_ALLOW_PRIVATE
+        value: "0"

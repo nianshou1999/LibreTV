@@ -4,7 +4,6 @@ import { createContext, useCallback, useContext, useEffect, useRef, useState, ty
 import { useQueryClient } from '@tanstack/react-query';
 import { api, onUnauthorized, STATUS_QUERY_KEY } from '@/lib/client-api';
 import { applyEnvPresets } from '@/lib/subscription-sync';
-import type { AuthStatusResponse } from '@/lib/types';
 import { useToast } from './toast';
 
 /**
@@ -100,14 +99,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // 预置订阅（DEFAULT_SUBSCRIPTIONS）的首屏同步发生在登录之前，会 401 静默失败，
     // 这里用缓存中的 /api/status 补跑一次（缓存缺失时回落为一次请求）
     try {
-      const cached = queryClient.getQueryData<AuthStatusResponse>(STATUS_QUERY_KEY);
-      const status =
-        cached ??
-        (await queryClient.fetchQuery<AuthStatusResponse>({
+      const status = await queryClient.fetchQuery({
           queryKey: STATUS_QUERY_KEY,
           queryFn: () => api.status(),
           staleTime: 0,
-        }));
+        });
       if (status) await applyEnvPresets(status);
     } catch {
       // 补拉预置数据失败不影响登录后的正常使用
@@ -116,7 +112,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   return (
     <AuthContext.Provider value={{ checked, verified, setupRequired, version, openLogin, logout }}>
-      {children}
+      {verified ? children : (
+        <main className="min-h-screen flex flex-col items-center justify-center gap-5 px-6 text-center">
+          <h1 className="text-3xl font-bold">LibreTV 私人影院</h1>
+          <p className="text-muted">登录后访问影视搜索、播放记录和设置。</p>
+          <button className="btn-primary" onClick={openLogin} disabled={!checked}>
+            {checked ? '输入私人访问密码' : '正在检查登录状态…'}
+          </button>
+        </main>
+      )}
       {modalOpen && (
         <LoginModal
           setupRequired={setupRequired}

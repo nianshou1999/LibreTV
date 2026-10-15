@@ -3,6 +3,7 @@ import { guardRequest } from '@/lib/api-guard';
 import { cmsRequestHeaders, parseDetail, parseDetailPageHtml } from '@/lib/cms-parser';
 import { fetchUpstream, getCache, setCache } from '@/lib/fetch-utils';
 import { checkUpstreamAllowed } from '@/lib/ssrf';
+import { isOpenFilmSource, openFilmDetail } from '@/lib/open-films';
 import type { SourceConfig, VideoDetail } from '@/lib/types';
 
 export const runtime = 'nodejs';
@@ -39,6 +40,11 @@ export async function GET(req: Request) {
   }
   if (!source) {
     return NextResponse.json({ error: '无效的点播源配置' }, { status: 400 });
+  }
+
+  if (isOpenFilmSource(source)) {
+    const detail = openFilmDetail(id);
+    return detail ? NextResponse.json(detail) : NextResponse.json({ error: '未找到影片' }, { status: 404 });
   }
 
   try {
