@@ -13,6 +13,12 @@ import {
 import { loadCacheSettings } from '@/lib/video-cache';
 import { formatTime } from '@/lib/utils';
 
+// Control reads art.constructor.CONTROL_HIDE_TIME on each timeupdate (ArtPlayer 5.4.0).
+// Scope the override to mobile instances; never mutate the shared Artplayer constructor.
+class MobileArtplayer extends Artplayer {
+  static CONTROL_HIDE_TIME = Infinity;
+}
+
 /**
  * 播放器外壳：ArtPlayer + hls.js（旧版 player.js 的 React 化）。
  * 保留：广告分片过滤、自动连播回调、进度回调、快捷键、移动端长按倍速、错误恢复。
@@ -313,7 +319,8 @@ export function PlayerShell({
 
     let lastSave = 0;
 
-    const art = new Artplayer({
+    const Player = Artplayer.utils.isMobile ? MobileArtplayer : Artplayer;
+    const art = new Player({
       container: containerRef.current,
       url: initialUrl,
       type: 'm3u8',
@@ -450,7 +457,7 @@ export function PlayerShell({
       // 松手后倍速永久卡在 3x；旧定时器句柄也会被覆盖成无法清除的幽灵触发
       if (isLongPress || longPressTimer) return;
       // 控制栏 / 设置面板上的长按不触发倍速（按住进度条拖动、长按倍速菜单项会误触）
-      if ((e.target as HTMLElement).closest?.('.art-controls, .art-settings')) return;
+      if ((e.target as HTMLElement).closest?.('.art-bottom, .art-settings')) return;
       originalRate = art.video.playbackRate;
       longPressTimer = setTimeout(() => {
         if (art.video?.paused) return;
@@ -497,6 +504,7 @@ export function PlayerShell({
       }
       document.removeEventListener('keydown', shortcuts);
       document.removeEventListener('visibilitychange', saveOnHide);
+      if (longPressTimer) clearTimeout(longPressTimer);
       if (hintTimerRef.current) clearTimeout(hintTimerRef.current);
       el?.removeEventListener('touchstart', onTouchStart);
       el?.removeEventListener('touchend', onTouchEnd);
